@@ -11,7 +11,12 @@ import eqtools
 import signalGen3
 import numpy as np
 
-""" Sep 22, 2017 - No updates to pinholeGUI3 other then calling updated signalGen2 and pinholeDet3"""
+
+""" Sep 22, 2017 - No updates to pinholeGUI3 other then calling updated signalGen2 
+                   and pinholeDet3
+	Sep 30, 2017 - Data loading now has its own part in GUI, all hapens in this file
+	               instead of in signalGen. Cuts down rundtime and calls to eqtools
+	             - Minor changes to the GUI interface visually"""
 
 # All measurements given in mm, etendue correction assumes this
 lyALine = 0.000121567 # wavelength in mm
@@ -33,7 +38,7 @@ responseAXUV = 0.15 #AXUV respone
 """
 
 # For 20 array
-
+#"""
 
 detWidth = 0.75 
 detHeight = 4.05 ## in mm
@@ -41,6 +46,7 @@ detGap = 0.20 #Gap between detectors in array
 nDetectors = 20 # number of detectors
 detLength = nDetectors*detWidth+(nDetectors-1)*detGap
 responseAXUV = 0.15 #AXUV respone
+#"""
 
 filterTrans = 0.05  #We could get this in 10 though with great FWHM
 filterFWHM = 0.00001 # mm, must match units of center
@@ -50,6 +56,36 @@ lymanBright = 20 * balmerBright
 
 voltNoise = 20*10**(-3)
 gain = 1*10**7 #set by pre-amp V/A
+
+
+
+"""Helper funciton finds the index of the first non blank charcter in a str"""
+def firstNum(line):
+	index = 0
+	for ch in line:
+		if ch != ' ':
+			break
+		index += 1
+	return index
+
+"""using for reading in files created by SOLPS which have a very wierd formatting.
+   This was based off of one SOLPS data file so might need to be changed."""
+
+def myRead(filename):
+	data = []
+
+	with open(filename) as f:
+		for line in f:
+			marker = " 0 "
+			index = line.rfind(marker) #this finds the last instance of marker
+
+			cutLine = line.strip('\r\n')[index+len(marker):]
+
+			#now we trim off the remaining spaces
+			datum = float( cutLine[firstNum(cutLine):] )
+			data.append(datum)
+
+	return data
 
 
 # Calculate the finite slit size correction
@@ -158,7 +194,7 @@ def pinholeSim():
 	sigR = rSig.get()
 
 	unit= 10**(-3) #this file is in mm, everything else in m
-	#MAKE SURE TO ONLY PASS THINGS IN M TO UNDERLYING FILES
+	#MAKE SURE TO ONLY PASS THINGS IN Meters TO UNDERLYING FILES
 	detParam = [detWidth*unit,detHeight*unit,nDetectors, detGap * unit , responseAXUV,filterTrans,lyALine*unit,\
 	filterFWHM*unit,gain,filterN,voltNoise]
 
@@ -180,9 +216,9 @@ def loadData():
 	eq = eqtools.EqdskReader(gfile = 'g' + str(agFile.get()),afile = 'a'+ str(agFile.get()))
 
 
-	lEmiss = signalGen3.myRead(brightFile.get())		
-	rPos = signalGen3.myRead(rFile.get())
-	zPos = signalGen3.myRead(zFile.get())
+	lEmiss = myRead(brightFile.get())		
+	rPos = myRead(rFile.get())
+	zPos = myRead(zFile.get())
 	psiPos = eq.rz2psinorm(np.array(rPos),np.array(zPos))[0] #eqtools uses numpy arrays
 	angPos = signalGen3.magAngle(rPos,zPos,eq)
 
@@ -251,17 +287,17 @@ sWSlider = Scale(root, variable = sWidth, orient = 'horizontal',from_ = 0, to = 
 sWSlider.grid(row=8, column = 1)
 
 
-rLabel = Label(root, text = 'Center of Detector r(m):')
+rLabel = Label(root, text = 'Center of Object Plane r(m):')
 rLabel.grid(row = 10, column = 0)
 rSig = DoubleVar()
 rSig.set(2.24)
 rEntry = Entry (root,text = rSig, bg = 'white')
 rEntry.grid(row = 10, column = 1)
 
-zLabel = Label(root, text = 'Center of Detector z(m):')
+zLabel = Label(root, text = 'Center of Object Plane z(m):')
 zLabel.grid(row = 11, column = 0)
 zSig = DoubleVar()
-zSig.set(-0.25)
+zSig.set(-0.72)
 zEntry = Entry (root,text = zSig, bg = 'white')
 zEntry.grid(row = 11, column = 1)
 
@@ -420,7 +456,7 @@ agEntry = Entry (root,text = agFile, bg = 'white')
 agEntry.grid(row = 13, column = 3)
 
 emiss = []
-eq = eqtools.EqdskReader(gfile = 'g' + str(agFile.get()),afile = 'a'+ str(agFile.get()))
+#eq = eqtools.EqdskReader(gfile = 'g' + str(agFile.get()),afile = 'a'+ str(agFile.get()))
 
 loadButton = Button(root,text = "Load", command = lambda: loadData())
 loadButton.grid(row = 14, column = 3)

@@ -88,19 +88,32 @@ def torPlot(r, z, angle, cov, obDist, detArray,lineEmiss,brightness, emiss):
 
 	rMin = r - (sin(angle) * cov/2)
 	zMin = z - (cos(angle) * cov/2)
+	rMax = r + (sin(angle) * cov/2)
+	zMax = z + (cos(angle) * cov/2)
 
 	# creat the figure
 	fig1 = plt.figure()
 	gridspec.GridSpec(3,4)
 
-	# display SOLPS data 
+	# display SOLPS data, we only want data close to area of interest
+	plotEmiss = []
+	for i in range(len(emiss)):
+		if emiss[i][0] < (rMax + 0.2):
+			if emiss[i][0] > (rMin - 0.2):
+				if emiss[i][1] > (zMin - 0.2):
+					if emiss[i][1] < (zMax + 0.2):
+						plotEmiss.append([emiss[i][0],emiss[i][1],emiss[i][2]])
+
+
+
 	p1 = plt.subplot2grid((3,4),(0,0), colspan = 2, rowspan = 3)
 	plt.text(0.8,1.4,'Detector Coverage in Red')
 	plt.xlabel('R [m]')
 	plt.ylabel('Z [m]')
 	plt.title('SOLPS data')
-	plt.scatter( [row[0] for row in emiss],[row[1] for row in emiss], \
-		c = [row[2] for row in emiss])
+	plt.scatter( [row[0] for row in plotEmiss],[row[1] for row in plotEmiss], \
+		c = [row[2] for row in plotEmiss])
+	plt.colorbar()
 
 	# adding in array coverage graphic, overlay in SOLPS data 
 	# Note this is all to scale...pretty dope
@@ -115,7 +128,7 @@ def torPlot(r, z, angle, cov, obDist, detArray,lineEmiss,brightness, emiss):
 
 	# first creating the signal to noise plot
 	p2 = plt.subplot2grid((3,4),(2,2), colspan = 2, rowspan = 1)
-	plt.plot([row[0] for row in brightness],[1.0 for row in brightness],\
+	plt.plot([row[0] for row in brightness if row[0] < rMax],[1.0 for row in brightness if row[0] < rMax],\
 		label = 'sig/noise',color = 'red')
 	plt.xlabel('R [m]')
 	plt.ylabel('Sig/Noise')
@@ -248,8 +261,8 @@ def torBrightness(r,z, angle, emiss, detArray, obDist,eqObj):
 	# for finding where to stop our grid
 	boundary = boundaries(emiss)
 
-	rMin = r - (sin(angle) * length/2) #farthest coordinates of detector object plane
-	zMin = z - (cos(angle) * length/2)
+	rMin = round(r - (sin(angle) * length/2),4) #farthest coordinates of detector object plane
+	zMin = round(z - (cos(angle) * length/2),4)
 	rMax = boundary[1]
 
 	print('rMax: '+ str(rMax))
@@ -258,6 +271,8 @@ def torBrightness(r,z, angle, emiss, detArray, obDist,eqObj):
 
 	# Here we are calculating the object plane slope
 	slope = (z - zMin)/(r-rMin)
+
+	print('angle:' + str(slope))
 
 	# if the detector is horizontal, it is much faster to treat it seperately because
 	# the torAbel calculation is one dimensional
@@ -446,9 +461,29 @@ def runSim(sigZ,sigR, angle, obDist, resolution, sWidth, sHeight, tor, detParam,
 ##########         FOR TESTING               ##############
 ##########         FOR TESTING               ##############
 ##########         FOR TESTING               ##############
+def firstNum(line):
+	index = 0
+	for ch in line:
+		if ch != ' ':
+			break
+		index += 1
+	return index
 
+def myRead(filename):
+	data = []
 
+	with open(filename) as f:
+		for line in f:
+			marker = " 0 "
+			index = line.rfind(marker) #this finds the last instance of marker
 
+			cutLine = line.strip('\r\n')[index+len(marker):]
+
+			#now we trim off the remaining spaces
+			datum = float( cutLine[firstNum(cutLine):] )
+			data.append(datum)
+
+	return data
 
 def main():
 
@@ -486,7 +521,7 @@ def main():
 	imDist = obDist * detWidth / resolution
 	detArray = []
 	# We will assume the pinhole marks x-center
-	"""
+	
 	#for loading in stuff from idl
 
 	idl = pidly.IDL()
@@ -508,7 +543,7 @@ def main():
 
 
 	abel = signalGen3.torAbel(lineEmiss)
-	"""
+	
 	abel = []
 	for i in range(len(lineEmiss)-1 ,-1 ,-1):
 		integrand = 0.0
@@ -559,7 +594,7 @@ def main():
 		
 		# due to counting backwards insert first element, this is bad performance wise
 		abel.insert(0,[y,integrand])
-	"""
+	
 	print abel
 	
 	plt.plot([row[0] for row in abel],[row[1] for row in abel])
@@ -568,7 +603,6 @@ def main():
 	idl.close()
 
 
-	"""
 
 	for i in range(nDetectors):
 		#This formula is a bit confusing but gives correct result for even or odd detector
@@ -581,18 +615,20 @@ def main():
 		detArray.append(det)
 
 		
-
-	lEmiss = signalGen2.myRead("SOLPS/lyman_alpha_data.txt")		
-	rPos = signalGen2.myRead("SOLPS/lyman_alpha_R.txt")
-	zPos = signalGen2.myRead("SOLPS/lyman_alpha_Z.txt")
+	"""
+	lEmiss = myRead("/home/aaronmr/Desktop/cr162944/162944_ly_D_320.txt")		
+	rPos = myRead("/home/aaronmr/Desktop/cr162944/cr_162944_2.txt")
+	zPos = myRead("/home/aaronmr/Desktop/cr162944/cz_162944_2.txt")
 
 	emiss = []
 	for i in range(len(lEmiss)):
 		emiss.append([ rPos[i],zPos[i],lEmiss[i] ])
 
 	
-	torBrightness(sigR,sigZ,pi/2, emiss, detArray, obDist)
-	"""
+	plt.scatter( [row[0] for row in emiss],[row[1] for row in emiss], \
+		c = [row[2] for row in emiss])
+	plt.show()
+	
 
 
 	return 0

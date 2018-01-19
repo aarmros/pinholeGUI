@@ -6,40 +6,21 @@ import eqtools
 import time #for testing runtime
 
 
+
 """
 Sep 22, 2017 - Version 2 adds flux interpolation along with the helper functions magAngle and 
 aveEmiss
+
+Sep 30 2017 - Version 3 magAngle now takes arrays, passing arrays is faster because it minimizes
+              calls to eqtools
+              FluxInterpolate now assumes, theta and psi are in emiss array to minimize calls to 
+              eqtools
+             - moved myRead to pinholeGUI since file reading of program happens there
+               now pinholeGUI is imported for testing in this file
 """
 
 maxSearch = 100
 
-"""Helper funciton finds the index of the first non blank charcter in a str"""
-def firstNum(line):
-	index = 0
-	for ch in line:
-		if ch != ' ':
-			break
-		index += 1
-	return index
-
-"""using for reading in files created by SOLPS which have a very wierd formatting.
-   This was based off of one SOLPS data file so might need to be changed."""
-
-def myRead(filename):
-	data = []
-
-	with open(filename) as f:
-		for line in f:
-			marker = " 0 "
-			index = line.rfind(marker) #this finds the last instance of marker
-
-			cutLine = line.strip('\r\n')[index+len(marker):]
-
-			#now we trim off the remaining spaces
-			datum = float( cutLine[firstNum(cutLine):] )
-			data.append(datum)
-
-	return data
 
 """ We live in a 2D world """
 def distance(x,y,x2,y2):
@@ -51,45 +32,53 @@ def distance(x,y,x2,y2):
 def line(slopePoint,x):
 	return slopePoint[0]*(x-slopePoint[1])+slopePoint[2]
 
+""" takes in r and z position as array and eqtools eqDSKReader object. Calculates the angle 
+    from the horizontal with the magnetic center as the axis. returned angle is
+    from -pi to pi """
+
 def magAngle(r,z,eqObj):
 
 	if (len(r) != len(z)):
 		print('magAngle Error: R and Z arrays have different length')
 
+	# find the magnetic center
 	magR = eqObj.getMagR()
 	magZ = eqObj.getMagZ()
 
 	angles = []
 
+	# go over inputs finding the angles
 	for i in range(len(r)):
 
 		x = r[i] - magR
 		y = z[i] - magZ
 
+		# We use atan2 because it knows about quadrants and returns a signed 
+		# result which makes minimizing theta in fluxInterpolate easier
 		angles.append(atan2(y,x))
 
-	#return the angle in the range pi to -pi 
+	
 	return angles
 
-# weighted average by distance
+"""" returns weighted average by distance"""
 def aveEmiss(emiss1,emiss2,dis1,dis2):
-	dTotal = dis1+dis2
+
+	dTotal = dis1+dis2 # total distance
+
 	return (emiss1 * dis2/dTotal) + (emiss2 * dis1/dTotal)
 
+""" Takes in a point and its corresponding psi, goes over emiss finding closest point
+    in positive and negative theta direction on the same flux surface. Returns
+    the distance weighted average emissivity of the two points. """
 
 def fluxInterpolate(r,z, psi, emiss, maxDist,eqObj):
-	
 
-	#print(r)
-	#print(z)
-	#testprint = []
-	#testprint.append([r,z,1*10**30])
-
-	closestR1 = r # set theses in the loop to correct value
-	closestZ1 = z #
+	closestR1 = r              # set theses in the loop to correct value
+	closestZ1 = z 
 	closestEmiss1 = 0
-	disNegTheta = 1000 # we are minimizing; so good place to start
-	# update this somehow to use emiss values Sep 22 2017
+	disNegTheta = 1000         # we are minimizing; so good place to start
+
+	# update this somehow to use distance in emiss values Sep 22 2017
 
 	# It takes two to interpolate
 	closestR2 = r
@@ -97,17 +86,13 @@ def fluxInterpolate(r,z, psi, emiss, maxDist,eqObj):
 	closestEmiss2 = 0
 	disPosTheta= 1000
 
-	t0 = time.time()
-
 	theta = magAngle([r],[z],eqObj)[0]
-	
 
-	tolerance = 0.01 # this should be tweeked depending on spacing of data sep 22 2017
+	tolerance = 0.01           # this should be tweeked depending on spacing of data sep 22 2017
 
-	# looking for closest data point with smaller theta and larger theta
+	# looking for closest data point with smaller theta and larger theta on same psi in emiss
 	for i in range(len(emiss)):
 		
-		#testprint.append([emiss[i][0],emiss[i][1],emiss[i][2]])
 		curPsi = emiss[i][3]
 
 		#We can just skip the point if it is not on same psi
@@ -115,28 +100,21 @@ def fluxInterpolate(r,z, psi, emiss, maxDist,eqObj):
 		if (curPsi  > (psi + tolerance)) or (curPsi  < (psi - tolerance)):
 			continue
 
-		# magAngle is between 0 and 2 pi
-
+		curR = emiss[i][0]
+		curZ = emiss[i][1]
 		curTheta = emiss[i][4]
-
-		#print(curTheta)
-		curDis = distance(r,z,emiss[i][0],emiss[i][1])
+		curDis = distance(r,z,curR,curZ)
 
 		# first check if curTheta is in positive or negative theta direction
 		if  (curTheta - theta) >=  0 and (curTheta - theta) < pi :
 
 			# Now check if it is closest point 
 			if(curDis < disPosTheta):
-				
 			
-				closestR2 = emiss[i][0]
-				closestZ2 = emiss [i][1]
+				closestR2 = curR
+				closestZ2 = curZ
 				closestEmiss2 = emiss[i][2]
 				disPosTheta = curDis
-
-				# No need to update psi, it is by default the same 
-				# no wandering error in psi + tolerance 
-		
 
 		#otherwise we are looking in negative theta direction
 		else:
@@ -149,50 +127,32 @@ def fluxInterpolate(r,z, psi, emiss, maxDist,eqObj):
 				closestEmiss1 = emiss[i][2]
 				disNegTheta = curDis
 
-	"""
-	print('original theta' + str(theta))
-	print('one ' + str(closestR1) + ',' + str(closestZ1))
-	print('one' + str(magAngle(closestR1,closestZ1,eqObj)))
-	print('two ' + str(closestR2) + ',' + str(closestZ2))
-	print('one' + str(magAngle(closestR2,closestZ2,eqObj)))
-	"""
 
+	# Do a weighted average of closest points
 	aEmiss = aveEmiss(closestEmiss1,closestEmiss2, disNegTheta,disPosTheta)
-	# outside this range, we will return defaul values of x,y, 0
+
+	# If one of the closest data points is too far away, ignore it
 	if (disNegTheta > maxDist):
 		
 		print('One No point within maxDist')
-		print (disNegTheta)
-		print('rz:' + str(r)+','+str(z))
-		print(closestR1)
-		print(closestZ1)
-		
+
 		closestEmiss1 = 0.0
-		aEmiss = closestEmiss2
+		aEmiss = closestEmiss2 #ignore the far point in average
 
 
 	if (disPosTheta > maxDist):
+
 		print(' Two No point within maxDist')
-		print(disPosTheta)
-		print(closestR2)
-		print(closestZ2)
+
 		closestEmiss2 = 0.0
 		aEmiss = closestEmiss1
-
-	#plt.scatter([row[0] for row in testprint],[row[1] for row in testprint],c = [row[2] for row in testprint])
-	#plt.show()
-	t1 = time.time()
-	
-
-	#print('time to run: ' + str(t1-t0))
-
-
 
 	return [closestR1,closestZ1,aEmiss]
 
 
 
-
+"""closestPoint is no longer used as of Version3, keeping becasue
+   it is generally useful and maybe used in future """
 
 """searches emiss until it finds the closest point in emiss
    to x, y, returns that entry of emiss i.e. [r/x ,z/y,emiss Value]. If
@@ -281,6 +241,7 @@ def torAbel(lineEmiss):
 
 	# we assume there is an equal spacing
 	dr = lineEmiss[1][0] - lineEmiss [0][0]
+
 
 	for i in range(len(lineEmiss)-1 ,-1 ,-1):
 		integrand = 0.0
@@ -405,11 +366,14 @@ def main():
 	
 
 	"""
-	lEmiss = myRead("SOLPS/lyman_alpha_data.txt")		
-	rPos = myRead("SOLPS/lyman_alpha_R.txt")
-	zPos = myRead("SOLPS/lyman_alpha_Z.txt")
+	lEmiss = pinholeGUI4.myRead("SOLPS/lyman_alpha_data.txt")		
+	rPos = pinholeGUI4.myRead("SOLPS/lyman_alpha_R.txt")
+	zPos = pinholeGUI4.myRead("SOLPS/lyman_alpha_Z.txt")
 
 	edr = eqtools.EqdskReader(gfile = 'g156867.02006',afile = 'a156867.02006')
+	edr.plotFlux()
+
+	"""
 
 	emiss = []
 	for i in range(len(lEmiss)):
@@ -447,6 +411,8 @@ def main():
 	plt.subplot(212)
 	plt.scatter([row[0] for row in dta],[row[1] for row in dta], c= [row[2] for row in dta])
 	plt.show()
+
+	"""
 
 	"""
 
