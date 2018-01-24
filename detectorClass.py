@@ -48,34 +48,35 @@ class Detector(object):
 
 
 
-	"""returns the angle as measured from the pinhol normal"""
+	"""returns the angle as measured from the pinhole normal"""
 	def angle(self):
 		return atan(self.x/self.y)
 
-	"""Takes in the center wavelength and index of refraction of filter
-	and returns the corresponding cwl"""
-	def cwl(self):
+	"""Takes in the center wavelength at normal incidenc and index of refraction
+           of filter and returns the transmission  at wl due to off normal incidence
+           of light on filter"""
+	def cwl(self,wl):
 		theta = self.angle()
 		if (theta > pi/12):
 			print('Warning: Incident Light on Filter Exceeds Limits')
 
 
-		#this equation assumes that the index of refraction around teh filter
+		#this equation assumes that the index of refraction around the filter
 		# is 1, probably a pretty goood estimate, calculates the shift in the 
 		#central wavelength of the filter
 		centwave =  self.wlngth*sqrt(1.0-(abs(sin(theta))/self.n)**2)
 		
 
 		# We now assume that the filter roughtly behaves the same as central propogation
-		# with the central wavelength shiting. This is probably NOT completely true
+		# with the central wavelength shifting. This is probably NOT completely true
 		# however it does have the benefit of decreasing transmission as the filter is
 		# angled in a reasonable manner, so why not? 
 
 		# use wavelength as what we are absorbing
 		# decrease the amplitude as angle increases linearly to 4% at 15 degrees
-		# this is rough number provided in email.
+		# this is rough number provided in email from Action Optics.
 		transmission = self.calcTrans()
-		return createGaussian(self.FWHM, centwave, transmission, self.wlngth)
+		return createGaussian(self.FWHM, centwave, transmission, wl)
 
 
 	"""returns the x position of the plane being imaged by the detector"""
@@ -112,16 +113,49 @@ class Detector(object):
 		sG = omegas * dA 
 
 		eLyman = h * c/self.wlngth
-		# real one power = brightness * sG * self.cwl()* eLyman #power deposited)
+		power = brightness * sG * self.cwl(self.wlngth)* eLyman #power deposited)
 
 		# use overestimate for now
-		power = brightness * sG * self.trans* eLyman #power deposited)
+		#power = brightness * sG * self.trans* eLyman #power deposited)
 
 		i = power * self.response
 
 		self.signal = i * self.gain
 
 		return self.signal
+	
+
+	def noiseCalc(self,brightness, noiseWvlngth):
+		nTrans = self.cwl(noiseWvlngth) # this is percent transmission of noiseWvlngth
+
+		dA = self.width * self.height
+		
+		sA = self.sWidth * self.sHeight 
+
+		omegas = sA/(self.y**2) # solid angle of slit from center of detector
+	
+
+		sG = omegas * dA
+		eNoise = h * c/noiseWvlngth
+		
+		power = brightness * sG * nTrans* eNoise
+
+		#assumes the response is constant across wavelength which is true
+		# if the wvlngth is close to the center wvlngth
+		i = power * self.response
+
+		noiseVolt = i * self.gain
+
+		if (noiseVolt > self.noise):
+			# this should probably be += but if this function is called twice with
+			# the same wvlngth it could cause issues
+			self.noise = noiseVolt
+
+		return noiseVolt
+
+		
+
+		
 
 	# Update to something more accurate - AR Aug 2, 2017
 	def calcTrans(self):

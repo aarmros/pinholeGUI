@@ -9,7 +9,7 @@ from math import *
 import eqtools 
 import time
 
-import pidly #for testing with IDL
+#import pidly #for testing with IDL
 
 """Sep 22, 2017  - Version 3 adds eqtools for magnetic reconstruction; mostly just added to function
 calls to work as pass through to signalGen2 where actual changes were made"""
@@ -18,6 +18,9 @@ calls to work as pass through to signalGen2 where actual changes were made"""
 numStep = 50
 
 balmer2Lyman =1 #correcting from balmer to lyman
+
+nosieFrac = 1.0/5.0 #fraction of carbon III of Lyman
+noiseWvlngth = 119 #carbon III VUV line is of concern in nm
 
 """ used for setting the alpha level when plotting signal to noise. 
     Very Simple."""
@@ -316,6 +319,7 @@ def torBrightness(r,z, angle, emiss, detArray, obDist,eqObj):
 		
 		
 		sig = detArray[i].signal
+		detArray[i].noiseCalc(curBright*noiseFrac,noiseWvlngth)
 		vNoise  = detArray[i].noise
 
 		print('signal:'+str(sig/vNoise)+'\n')
@@ -387,6 +391,7 @@ def polBrightness(r,z, angle, emiss, detArray, obDist,eqObj):
 		curBright = signalGen3.lineInt(lineEmiss)
 
 		detArray[i].sigCalc(balmer2Lyman*curBright)
+		detArray[i].noiseCalc(curBright*noiseFrac,noiseWvlngth)
 
 
 	polPlot(r,z,angle, obDist, detArray, emiss, lineEmissArray)
