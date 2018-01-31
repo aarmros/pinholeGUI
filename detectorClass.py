@@ -52,31 +52,37 @@ class Detector(object):
 	def angle(self):
 		return atan(self.x/self.y)
 
-	"""Takes in the center wavelength at normal incidenc and index of refraction
-           of filter and returns the transmission  at wl due to off normal incidence
-           of light on filter"""
-	def cwl(self,wl):
+	# Update to something more accurate - AR Aug 2, 2017
+	# linear decrease in transmission as filter is tilted 1% decrease over
+	# 15 degrees - rough numbers provided by Acton Optics in email
+	def calcTrans(self):
+		return self.trans-abs(self.angle())/(pi/12)*0.01
+
+	"""Takes in a wavelength wl and ouputs the transmission at that wl
+	through the filter. Takes into account shift in transmission curve of filter
+	due to angle of light onto filter. DOES NOT take into account decrease
+	of transmission overall due to angle of incidence"""
+	def filterTrans(self,wl):
+
 		theta = self.angle()
 		if (theta > pi/12):
 			print('Warning: Incident Light on Filter Exceeds Limits')
 
 
 		#this equation assumes that the index of refraction around the filter
-		# is 1, probably a pretty goood estimate, calculates the shift in the 
+		#is 1, probably a pretty goood estimate, calculates the shift in the 
 		#central wavelength of the filter
-		centwave =  self.wlngth*sqrt(1.0-(abs(sin(theta))/self.n)**2)
+		wlShift =  wl*sqrt(1.0-(abs(sin(theta))/self.n)**2)
+		print('wlShift: ' + str( wlShift-wl))
 		
 
-		# We now assume that the filter roughtly behaves the same as central propogation
+		# We now assume that the filter roughtly behaves the same as normal incidence 
 		# with the central wavelength shifting. This is probably NOT completely true
-		# however it does have the benefit of decreasing transmission as the filter is
-		# angled in a reasonable manner, so why not? 
 
-		# use wavelength as what we are absorbing
-		# decrease the amplitude as angle increases linearly to 4% at 15 degrees
-		# this is rough number provided in email from Action Optics.
-		transmission = self.calcTrans()
-		return createGaussian(self.FWHM, centwave, transmission, wl)
+		#Gives transmission at shifted wl without decrease of overall transmission due to shift
+		transmission = filterTransCurve(wlShift)
+
+		return transmission
 
 
 	"""returns the x position of the plane being imaged by the detector"""
@@ -113,7 +119,9 @@ class Detector(object):
 		sG = omegas * dA 
 
 		eLyman = h * c/self.wlngth
-		power = brightness * sG * self.cwl(self.wlngth)* eLyman #power deposited)
+		t = self.filterTrans(self.wlngth)
+		
+		power = brightness * sG * t* eLyman #power deposited)
 
 		# use overestimate for now
 		#power = brightness * sG * self.trans* eLyman #power deposited)
@@ -126,8 +134,8 @@ class Detector(object):
 	
 
 	def noiseCalc(self,brightness, noiseWvlngth):
-		nTrans = self.cwl(noiseWvlngth) # this is percent transmission of noiseWvlngth
-
+		nTrans = self.filterTrans(noiseWvlngth) # this is percent transmission of noiseWvlngth
+		
 		dA = self.width * self.height
 		
 		sA = self.sWidth * self.sHeight 
@@ -145,21 +153,20 @@ class Detector(object):
 		i = power * self.response
 
 		noiseVolt = i * self.gain
+		print("noiseVolt: " + str(noiseVolt))
 
 		if (noiseVolt > self.noise):
 			# this should probably be += but if this function is called twice with
 			# the same wvlngth it could cause issues
 			self.noise = noiseVolt
 
-		return noiseVolt
+		return self.noise
 
 		
 
 		
 
-	# Update to something more accurate - AR Aug 2, 2017
-	def calcTrans(self):
-		return self.trans-abs(self.angle())/(pi/12)*0.01
+
 
 	# the distance covered by the array is the distance to the farthest
 	# detector object plane (center of detector object plane) + detector object width/2
@@ -177,3 +184,17 @@ class Detector(object):
 def createGaussian(FWHM, center,height, x):
 	sigma = FWHM / (2 * sqrt(2 * log(2)))  # relate sigma to FWHM
 	return height * exp(-(x-center)**2/(2 * sigma**2)) #unnormalized
+
+def filterTransCurve(curWl):
+
+	wl= [115*10**(-9),116*10**(-9),117*10**(-9),118*10**(-9),119*10**(-9),120*10**(-9),121*10**(-9),122*10**(-9),123*10**(-9),124*10**(-9),125*10**(-9),126*10**(-9),464,466]
+	trans = [0.656443754,1.640656909,2.73955072,5.411452932,7.609680084,7.736856405,7.470670058,7.304309542,6.642470524,5.792063537,4.893774912,4.035165991,1.0,1.0]
+
+	i = 0;
+	while (curWl >= wl[i]):
+		i += 1
+	
+	#linear weighted average
+	aveTrans = abs(((trans[i]*0.01*(curWl-wl[i-1]))+(trans[i-1]*0.01*(wl[i]-curWl)))/(wl[i]-wl[i-1]))
+
+	return aveTrans

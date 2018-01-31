@@ -19,8 +19,8 @@ numStep = 50
 
 balmer2Lyman =1 #correcting from balmer to lyman
 
-nosieFrac = 1.0/5.0 #fraction of carbon III of Lyman
-noiseWvlngth = 119 #carbon III VUV line is of concern in nm
+noiseFrac = 1.0 #fraction of carbon III of Lyman
+noiseWvlngth = 117.5*10**(-9)#carbon III VUV line is of concern in nm
 
 """ used for setting the alpha level when plotting signal to noise. 
     Very Simple."""
@@ -98,7 +98,10 @@ def torPlot(r, z, angle, cov, obDist, detArray,lineEmiss,brightness, emiss):
 	fig1 = plt.figure()
 	gridspec.GridSpec(3,4)
 
+	plotEmiss = emiss
+	
 	# display SOLPS data, we only want data close to area of interest
+
 	plotEmiss = []
 	for i in range(len(emiss)):
 		if emiss[i][0] < (rMax + 0.2):
@@ -106,7 +109,7 @@ def torPlot(r, z, angle, cov, obDist, detArray,lineEmiss,brightness, emiss):
 				if emiss[i][1] > (zMin - 0.2):
 					if emiss[i][1] < (zMax + 0.2):
 						plotEmiss.append([emiss[i][0],emiss[i][1],emiss[i][2]])
-
+	
 
 
 	p1 = plt.subplot2grid((3,4),(0,0), colspan = 2, rowspan = 3)
@@ -312,13 +315,15 @@ def torBrightness(r,z, angle, emiss, detArray, obDist,eqObj):
 			# point; however this is really computationally expensive and uncessary 
 			# with the sparsness of the SOLPS data
 
-
+		#curBright = 1*10**20 # for testing geometry effects of detector angles
 		print('brigtness' + str(curBright) ) 
 
-		detArray[i].sigCalc(balmer2Lyman*curBright)# this 20 is from assuming solps data is for balmer
+		detArray[i].sigCalc(balmer2Lyman*curBright)
 		
 		
 		sig = detArray[i].signal
+
+		print('noise Brightness: ' + str(curBright*noiseFrac))
 		detArray[i].noiseCalc(curBright*noiseFrac,noiseWvlngth)
 		vNoise  = detArray[i].noise
 
@@ -491,150 +496,124 @@ def myRead(filename):
 	return data
 
 def main():
-
-	"""
-
-	# All measurements given in m
-	lyALine = 0.000121567 *10**(-3) # wavelength in m
+	lyALine = 0.000121567 # wavelength in mm
 	eLyman = 1.63*10**(-18) # energy of lyman photon J
+	mmTm = 1*10**(-6) # correction for units of mm^2 to m^2
 
-
-	# We will assume that the detector quantities are fixed 
-	detWidth = 0.75 *10**(-3) # in m 
-	detHeight = 4 *10**(-3) ## in m
-	detGap = 0.20 *10**(-3)#Gap between detectors in array
+	detWidth = 0.75 
+	detHeight = 4.05 ## in mm
+	detGap = 0.20 #Gap between detectors in array
 	nDetectors = 20 # number of detectors
 	detLength = nDetectors*detWidth+(nDetectors-1)*detGap
-	responseAXUV = 0.15 #AXUV respon
+	responseAXUV = 0.15 #AXUV respone
+	#"""
 
 	filterTrans = 0.05  #We could get this in 10 though with great FWHM
-	filterFWHM = 0.00001 *10**(-3)# m, must match units of center
+	filterFWHM = 0.00001 # mm, must match units of center
 	filterN = 2.6 #filter effective refractive index
 	balmerBright = 5*10**18 #taken directly from matlab (ph/s sr m2)
 	lymanBright = 20 * balmerBright
 
 	voltNoise = 20*10**(-3)
 	gain = 1*10**7 #set by pre-amp V/A
-
-	sigZ = -0.25
-	sigR = 2.25
-	
-	obDist = 1000 *10**(-3)
-	resolution = 5 *10**(-3)
-	sWidth = 2 *10**(-3)
-	sHeight = 8 *10**(-3)
-	imDist = obDist * detWidth / resolution
-	detArray = []
-	# We will assume the pinhole marks x-center
-	
-	#for loading in stuff from idl
-
-	idl = pidly.IDL()
-
-	idl('restore, "~/shot1091022012_1905.sav"')
-	lineEmiss = []
-	x = []
-
-	for i in range(len(idl.emiss0)):
-		lineEmiss.append([idl.emiss0[i],-0.038,idl.e[i]])
-		x.append(idl.emiss0[i])
-
-	lineEmiss.append([0.931,-0.038,0])
-
-	print(lineEmiss)
-	print('\n')
-	
-	
-
-
-	abel = signalGen3.torAbel(lineEmiss)
-	
-	abel = []
-	for i in range(len(lineEmiss)-1 ,-1 ,-1):
-		integrand = 0.0
-		y = lineEmiss[i][0]
-
-		print '\n'
-
-		for j in range(i , len(lineEmiss)):
-
-			r = lineEmiss[j][0] 
-
-			if r != y:  #make sure it is finite
-				dr = lineEmiss[len(lineEmiss)-1][0] - lineEmiss [len(lineEmiss)-2][0]
-				print('r is:' + str(r))
-				print('y is:' + str(y))
-				if (j != len(lineEmiss)-1):
-					print('not default dr')
-					dr = lineEmiss[j][0] - lineEmiss [j-1][0]
-					
-				integrand += (2 * lineEmiss[j-1][2] * r * dr /sqrt(r**2 - y**2))
-				
-		
-		# due to counting backwards insert first element, this is bad performance wise
-		abel.insert(0,[y,integrand])
-	
-
-
-	for i in range(len(lineEmiss)-1 ,-1 ,-1):
-		integrand = 0.0
-		y = lineEmiss[i][0]
-
-		for j in range(i+2 , len(lineEmiss)):
-
-			r = lineEmiss[j][0] 
-
-			if r != y:  #make sure it is finite
-				dr = lineEmiss[j][0] - lineEmiss [j-1][0]
-				r = (lineEmiss[j][0] +lineEmiss[j-1][0])/2.0 
-				print('r is:' + str(r))
-				print('y is:' + str(y))
-
-				emissR = (lineEmiss[j][2]+lineEmiss[j-1][2])/2.0
-					
-				#integrand += (2 * emissR * r * dr /sqrt(r**2 - y**2))
-
-				integrand += ((2 * lineEmiss[j][2] * r/sqrt(r**2 - y**2)) + (2 * lineEmiss[j-1][2]/sqrt(lineEmiss[j-1][0]**2 - y**2)))*dr/2
-				
-		
-		# due to counting backwards insert first element, this is bad performance wise
-		abel.insert(0,[y,integrand])
-	
-	print abel
-	
-	plt.plot([row[0] for row in abel],[row[1] for row in abel])
-	plt.show()
-
-	idl.close()
-
-
-
-	for i in range(nDetectors):
-		#This formula is a bit confusing but gives correct result for even or odd detector
-		#arrays, with center of array at (0,imDist)
-		xDist = (-(nDetectors-1)/2.0 + i) * (detWidth + detGap) 
-		
-		det = Detector(xDist,-imDist,detWidth, detHeight, responseAXUV, 0.0, sWidth, sHeight,\
-	              filterTrans,lyALine,filterFWHM, gain,filterN, voltNoise)
-
-		detArray.append(det)
-
-		
+	unit= 10**(-3)
 	"""
 	lEmiss = myRead("/home/aaronmr/Desktop/cr162944/162944_ly_D_320.txt")		
 	rPos = myRead("/home/aaronmr/Desktop/cr162944/cr_162944_2.txt")
 	zPos = myRead("/home/aaronmr/Desktop/cr162944/cz_162944_2.txt")
 
-	emiss = []
-	for i in range(len(lEmiss)):
-		emiss.append([ rPos[i],zPos[i],lEmiss[i] ])
-
-	
 	plt.scatter( [row[0] for row in emiss],[row[1] for row in emiss], \
 		c = [row[2] for row in emiss])
 	plt.show()
-	
+	"""
 
+	cEmiss = [0.2902*10**17,0.5502*10**17,0.5839*10**17,1.4203*10**17,1.1747*10**17,1.5960*10**17,0.8250*10**17,1.0448*10**17]
+	rPos = [2.2033,2.2281,2.2440,2.2598,2.2748,2.2895,2.3032,2.3165]
+
+	emiss = []
+	for i in range(len(cEmiss)):
+		emiss.append([ rPos[i],0.0,cEmiss[i] ])
+
+
+	detParam = [detWidth*unit,detHeight*unit,nDetectors, detGap * unit , 0.2 ,1.0,465*10**(-9),\
+	filterFWHM*unit,gain,filterN,voltNoise]
+
+	r = 2.26
+	z =0.0
+	obDist = 1.0
+	res = 0.005
+	angle = pi/2
+
+
+	detW = detParam[0] 
+	imDist = obDist * detW/res
+	detArray = []
+	nDet = detParam[2]
+	print('imDist:' +str(imDist))
+	# We will assume the pinhole marks x-center for the detector coordinates
+	# The detector coordinates are not in tokomak space, see detector class
+	# for definition of coordinates for Detectors.
+
+	for i in range(nDet):
+
+		#This formula is a bit confusing but gives correct result for even or odd detector
+		#arrays, with center of array at (0,imDist)
+		xDist = (-(nDet-1)/2.0 + i) * (detW + detParam[3]) 
+		
+		# initialize them with the values
+		det = Detector(xDist,-imDist,detW, detParam[1], detParam[4], 0.0, 0.002, 0.008,\
+	              detParam[5],detParam[6],detParam[7], detParam[8],detParam[9],detParam[10])
+
+		detArray.append(det)
+
+	grid = signalGen3.genGrid(2.3,0.0,0.0,0.001,2.2,2.4)
+	
+	lineData =[]
+	for i in range(len(grid)):
+		asd = signalGen3.closestPoint(grid[i][0],grid[i][1], emiss, 1.0)[2]
+		print(asd)
+		lineData.append([grid[i][0],grid[i][1],asd])
+	
+	invert = signalGen3.torAbel(lineData)
+	
+	
+	p1 = plt.subplot2grid((1,3),(0,0))
+	p1.plot([row[0] for row in emiss],[row[2] for row in emiss],label = 'emiss')
+	plt.xlabel('R [m]')
+	plt.ylabel('Emissivity \n [photons/(m^3 sr s)]')
+	plt.title('Emissivity')
+	p2 = plt.subplot2grid((1,3),(0,1))
+	p2.plot([row[0] for row in invert],[row[1] for row in invert],label = 'brightness')
+	plt.xlabel('R [m]')
+	plt.ylabel('Brightness \n [photons/(m^2 sr s)]')
+	plt.title('Brightness')
+	p3 = plt.subplot2grid((1,3),(0,2))
+	plt.xlabel('R [m]')
+	plt.ylabel('Signal [v]')
+	plt.title('Det signal')
+
+
+	for i in range(len(detArray)):
+
+		curR = r + (detArray[i].obPlane(obDist)*sin(angle))
+		curZ = z + (detArray[i].obPlane(obDist) * cos(angle)) # if horizontal all the same z
+		w = sin(angle)*detArray[i].correctSize(obDist, detArray[i].sWidth, detArray[i].width)/2
+
+		print('curR: '+ str(curR))
+
+		curBright = signalGen3.boxAve(invert, curR - w, curR + w)
+
+
+		detArray[i].sigCalc(balmer2Lyman*curBright)
+		
+		sig = detArray[i].signal
+		print('signal: ' +str(sig))
+
+		p3.bar(curR-(w*2), sig,w*2)	
+		p3.text(curR,0,str(i))
+
+
+	plt.show()
 
 	return 0
 

@@ -227,6 +227,7 @@ def loadData():
 	global emiss
 	for i in range(len(lEmiss)):
 		emiss.append([ rPos[i],zPos[i],lEmiss[i],psiPos[i],angPos[i]])
+		#emiss.append([ rPos[i],zPos[i],1.0*10**20,psiPos[i],angPos[i]]) # for testing geometry effects
 
 	print('Data Loaded')
 
@@ -290,7 +291,7 @@ sWSlider.grid(row=8, column = 1)
 rLabel = Label(root, text = 'Center of Object Plane r(m):')
 rLabel.grid(row = 10, column = 0)
 rSig = DoubleVar()
-rSig.set(2.24)
+rSig.set(1.91)
 rEntry = Entry (root,text = rSig, bg = 'white')
 rEntry.grid(row = 10, column = 1)
 
@@ -469,3 +470,4 @@ loadButton.grid(row = 14, column = 3)
 
 
 root.mainloop()
+

@@ -160,7 +160,6 @@ def fluxInterpolate(r,z, psi, emiss, maxDist,eqObj):
    x,y and emissitivity of 0"""
 
 def closestPoint(x,y, emiss, maxDist):
-	t0 = time.time()
 
 	closestX = x # set theses in the loop to correct value
 	closestY = y # we set equal to x, y in case of not finding a point
@@ -181,10 +180,6 @@ def closestPoint(x,y, emiss, maxDist):
 	# outside this range, we will return defaul values of x,y, 0
 	if (dist > maxDist):
 		print('No point within maxDist')
-
-	t1 = time.time()
-
-	print('time to run: ' + str(t1-t0))
 
 	return [closestX,closestY,closestEmiss]
 
