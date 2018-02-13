@@ -17,19 +17,20 @@ class Detector(object):
 	height = Height of detector (vertical in height, plasma z)
 	response detector response A/W
 	signal = signal that detector is recieving, initializes to 0
-	Each etector is associated with a filter and slit so store those variables
+	Each detector is associated with a filter and slit so store those variables
 	sWidth = width of the slit 
 	sHeight = height of the slit
-	trans = transmission of filter
+	trans = transmission of filter [[lambda0, lambda0 transmission],..]
 	wlngth = wavelength of center of filter
 	FWHM = full width half maximum of filter
 	gain = gain of detector
-	n = index of refraction of detector 
+	n = index of refraction of detector
+	mirrorTrans = mirror transmission at CIII and lyman [CIII trans,lya trans] 
 	"""
 
 
 	def __init__(self, x, y, width, height, response, signal , sWidth, sHeight, \
-		         trans, wlngth , FWHM, gain, n, noise):
+		         trans, wlngth , FWHM, gain, n, noise, mirrorTrans,cSignal):
 		self.x = x
 		self.y = y
 		self.width = width
@@ -45,6 +46,8 @@ class Detector(object):
 		self.gain = gain
 		self.n = n
 		self.noise = noise
+		self.mirrorTrans = mirrorTrans
+		self.cSignal =cSignal
 
 
 
@@ -73,14 +76,13 @@ class Detector(object):
 		#is 1, probably a pretty goood estimate, calculates the shift in the 
 		#central wavelength of the filter
 		wlShift =  wl*sqrt(1.0-(abs(sin(theta))/self.n)**2)
-		print('wlShift: ' + str( wlShift-wl))
 		
 
 		# We now assume that the filter roughtly behaves the same as normal incidence 
 		# with the central wavelength shifting. This is probably NOT completely true
 
 		#Gives transmission at shifted wl without decrease of overall transmission due to shift
-		transmission = filterTransCurve(wlShift)
+		transmission = self.filterTransCurve(wlShift)
 
 		return transmission
 
@@ -119,7 +121,8 @@ class Detector(object):
 		sG = omegas * dA 
 
 		eLyman = h * c/self.wlngth
-		t = self.filterTrans(self.wlngth)
+		t = self.filterTrans(self.wlngth)*(self.mirrorTrans[1]*0.01)
+		print('Signal Trans: '+ str(t))
 		
 		power = brightness * sG * t* eLyman #power deposited)
 
@@ -133,8 +136,11 @@ class Detector(object):
 		return self.signal
 	
 
-	def noiseCalc(self,brightness, noiseWvlngth):
-		nTrans = self.filterTrans(noiseWvlngth) # this is percent transmission of noiseWvlngth
+	def carbonCalc(self,brightness, carbonWvlngth):
+
+		# this is transmission of noiseWvlngth, factor 0.01 correcting for percent
+		nTrans = self.filterTrans(carbonWvlngth)*(self.mirrorTrans[0]*0.01) 
+		print('Carbon Trans: '+ str(nTrans))
 		
 		dA = self.width * self.height
 		
@@ -144,7 +150,7 @@ class Detector(object):
 	
 
 		sG = omegas * dA
-		eNoise = h * c/noiseWvlngth
+		eNoise = h * c/carbonWvlngth
 		
 		power = brightness * sG * nTrans* eNoise
 
@@ -152,18 +158,24 @@ class Detector(object):
 		# if the wvlngth is close to the center wvlngth
 		i = power * self.response
 
-		noiseVolt = i * self.gain
-		print("noiseVolt: " + str(noiseVolt))
+		carbonVolt = i * self.gain
+		print("carbon Volt: " + str(carbonVolt))
 
-		if (noiseVolt > self.noise):
-			# this should probably be += but if this function is called twice with
-			# the same wvlngth it could cause issues
-			self.noise = noiseVolt
+		self.cSignal = carbonVolt
 
-		return self.noise
+		return carbonVolt
 
 		
+	def filterTransCurve(self,curWl):
 
+		i = 0;
+		while (curWl >= self.trans[i][0]):
+			i += 1
+		
+		#linear weighted average, convert from percent to transmission fraction with 0.01
+		aveTrans = abs(((self.trans[i][1]*0.01*(curWl-self.trans[i-1][0]))+(self.trans[i-1][1]*0.01*(self.trans[i][0]-curWl)))/(self.trans[i][0]-self.trans[i-1][0]))
+
+		return aveTrans
 		
 
 
@@ -185,16 +197,3 @@ def createGaussian(FWHM, center,height, x):
 	sigma = FWHM / (2 * sqrt(2 * log(2)))  # relate sigma to FWHM
 	return height * exp(-(x-center)**2/(2 * sigma**2)) #unnormalized
 
-def filterTransCurve(curWl):
-
-	wl= [115*10**(-9),116*10**(-9),117*10**(-9),118*10**(-9),119*10**(-9),120*10**(-9),121*10**(-9),122*10**(-9),123*10**(-9),124*10**(-9),125*10**(-9),126*10**(-9),464,466]
-	trans = [0.656443754,1.640656909,2.73955072,5.411452932,7.609680084,7.736856405,7.470670058,7.304309542,6.642470524,5.792063537,4.893774912,4.035165991,1.0,1.0]
-
-	i = 0;
-	while (curWl >= wl[i]):
-		i += 1
-	
-	#linear weighted average
-	aveTrans = abs(((trans[i]*0.01*(curWl-wl[i-1]))+(trans[i-1]*0.01*(wl[i]-curWl)))/(wl[i]-wl[i-1]))
-
-	return aveTrans

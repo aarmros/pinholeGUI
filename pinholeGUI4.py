@@ -25,7 +25,7 @@ mmTm = 1*10**(-6) # correction for units of mm^2 to m^2
 
 
 # We will assume that the detector quantities are fixed 
-# Two detector quantities  
+# Two detector types  
 
 #for 16 array
 """
@@ -48,7 +48,7 @@ detLength = nDetectors*detWidth+(nDetectors-1)*detGap
 responseAXUV = 0.15 #AXUV respone
 #"""
 
-filterTrans = 0.05  #We could get this in 10 though with great FWHM
+
 filterFWHM = 0.00001 # mm, must match units of center
 filterN = 2.6 #filter effective refractive index
 balmerBright = 5*10**18 #taken directly from matlab (ph/s sr m2)
@@ -56,6 +56,18 @@ lymanBright = 20 * balmerBright
 
 voltNoise = 20*10**(-3)
 gain = 1*10**7 #set by pre-amp V/A
+
+#Filter Transmission info
+# input as [[wavlength0, trans0],...] with trans in percent below is manufacturer specified
+"""filterTrans = [[1.1500000000000001e-07, 0.656443754], [1.16e-07, 1.640656909], [1.17e-07, 2.73955072], [1.1800000000000001e-07, 5.411452932],\
+ [1.1900000000000001e-07, 7.609680084], [1.2000000000000002e-07, 7.736856405], [1.21e-07, 7.470670058], [1.22e-07, 7.304309542],\
+  [1.23e-07, 6.642470524], [1.24e-07, 5.792063537], [1.2500000000000002e-07, 4.893774912], [1.2600000000000002e-07, 4.035165991], [464, 1.0], [466, 1.0]]"""
+# this gives +2 nm
+filterTrans = [[1.1500000000000001e-07, 0.0],[1.1600000000000001e-07, 0.0],[1.1700000000000001e-07, 0.656443754], [1.18e-07, 1.640656909], [1.19e-07, 2.73955072], [1.2000000000000001e-07, 5.411452932],\
+ [1.2100000000000001e-07, 7.609680084], [1.2200000000000002e-07, 7.736856405], [1.23e-07, 7.470670058], [1.24e-07, 7.304309542],\
+  [1.25e-07, 6.642470524], [1.26e-07, 5.792063537], [1.2700000000000002e-07, 4.893774912], [1.2800000000000002e-07, 4.035165991], [464, 1.0], [466, 1.0]]
+mirrorT = [26.75,48.13] # transmission at [CIII 117.5, lya 121.5] 
+
 
 
 
@@ -127,6 +139,14 @@ def reFormat():
 
 	return 0
 
+def updateMirr():
+	if mirror.get() == True:
+		cTrans.set(mirrorT[0])
+		lTrans.set(mirrorT[1])
+	else:
+		cTrans.set(100.0) # if no mirror, mirror transmission is 100%
+		lTrans.set(100.0)
+
 def updateAng():
 	if tor.get() == True:
 		ang.set(90)
@@ -144,6 +164,7 @@ def MyUpdate(variable,b,c):
 
 
 	imDist.set(obDist.get() * detWidth / resolution.get())
+	print('image dist'+str(imDist.get()))
 
 	mag.set(obDist.get()/ imDist.get())
 
@@ -166,7 +187,7 @@ def MyUpdate(variable,b,c):
 	DG = omegaD*sA*mmTm	
 
 
-	power.set(lymanBright * sG * filterTrans*eLyman) #power deposited)
+	power.set(lymanBright * sG * mirrorT[1]*eLyman) #power deposited)
 
 	signalI.set(power.get()*responseAXUV)
 
@@ -195,12 +216,15 @@ def pinholeSim():
 
 	unit= 10**(-3) #this file is in mm, everything else in m
 	#MAKE SURE TO ONLY PASS THINGS IN Meters TO UNDERLYING FILES
+	mirrorT = [cTrans.get(),lTrans.get()]
+
+
 	detParam = [detWidth*unit,detHeight*unit,nDetectors, detGap * unit , responseAXUV,filterTrans,lyALine*unit,\
-	filterFWHM*unit,gain,filterN,voltNoise]
+	filterFWHM*unit,gain,filterN,voltNoise,mirrorT]
 
 	#fileNames = [brightFile.get(),rFile.get(),zFile.get(),agFile.get()]
 
-
+	
 	pinholeDet4.runSim(sigZ,sigR, radians(ang.get()),obDist.get()*unit,resolution.get()*unit,\
 		sWidth.get()*unit,sHeight.get()*unit,tor.get(),detParam,emiss,eq)
 
@@ -314,6 +338,17 @@ tor.set(True)
 torButton = Checkbutton(root, text = 'Toroidal View [unchecked poloidal]', variable = tor,
 	onvalue = True, offvalue = False, command = lambda: updateAng())
 torButton.grid(row = 14, column = 0)
+
+mirror = BooleanVar()
+mirror.set(True)
+mirrorButton = Checkbutton(root, text = 'Include Mirror', variable = mirror,
+	onvalue = True, offvalue = False,command = lambda: updateMirr())
+mirrorButton.grid(row = 15, column = 0)
+
+cTrans = DoubleVar()
+cTrans.set(mirrorT[0])
+lTrans = DoubleVar()
+lTrans.set(mirrorT[1])
 
 
 button = Button(root,text = "Run", command = lambda: pinholeSim())

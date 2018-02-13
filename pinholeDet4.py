@@ -101,7 +101,7 @@ def torPlot(r, z, angle, cov, obDist, detArray,lineEmiss,brightness, emiss):
 	plotEmiss = emiss
 	
 	# display SOLPS data, we only want data close to area of interest
-
+	
 	plotEmiss = []
 	for i in range(len(emiss)):
 		if emiss[i][0] < (rMax + 0.2):
@@ -134,6 +134,11 @@ def torPlot(r, z, angle, cov, obDist, detArray,lineEmiss,brightness, emiss):
 
 	# first creating the signal to noise plot
 	p2 = plt.subplot2grid((3,4),(2,2), colspan = 2, rowspan = 1)
+
+	
+
+	#below is for sig/noise bar chart
+	"""
 	plt.plot([row[0] for row in brightness if row[0] < rMax],[1.0 for row in brightness if row[0] < rMax],\
 		label = 'sig/noise',color = 'red')
 	plt.xlabel('R [m]')
@@ -150,6 +155,31 @@ def torPlot(r, z, angle, cov, obDist, detArray,lineEmiss,brightness, emiss):
 		#add in a bar for each detector
 		p2.bar(curR-w, sig/vNoise,w,alpha = aboveOne(sig/vNoise))	
 		p2.text(curR,0,str(i))
+	"""
+
+	rPlot = []
+	lSig = []
+	cSig = []
+
+	for i in range(len(detArray)):
+
+		curR = r + (detArray[i].obPlane(obDist)*sin(angle))
+		rPlot.append(curR)
+		
+
+		sig = detArray[i].signal
+		lSig.append(sig)
+
+		vNoise  = detArray[i].cSignal
+		cSig.append(vNoise)
+
+
+	plt.errorbar(rPlot,lSig, yerr = detArray[0].noise,label = 'Ly-a signal')
+	plt.plot(rPlot,cSig, label = 'CIII signal')
+	plt.ylim(ymin =0.0)
+	plt.ylabel('Signal [V]')
+	plt.xlabel('R [m]')
+	plt.legend()
 
 
 	#Now create the subplot for the brightness
@@ -157,13 +187,15 @@ def torPlot(r, z, angle, cov, obDist, detArray,lineEmiss,brightness, emiss):
 	plt.plot([row[0] for row in brightness],[row[1] for row in brightness],label = 'brightness')
 	plt.ylabel('Brightness \n [photons/(m^2 sr s)]')
 	plt.legend()
+	p3.add_patch(patches.Rectangle((rMin+(detArrayHeight/2*cos(angle)),0.1),cov, 1.6*10**21,angle = 0.0 , color = 'red' , alpha = 0.5))
 
 	#Finally the emissitivity
 	p4 = plt.subplot2grid((3,4),(0,2), colspan = 2, rowspan = 1)
 	plt.ylabel('Emiss \n [photons/(m^3 sr s)]')
 	plt.plot([row[0] for row in lineEmiss],[row[2] for row in lineEmiss],label = 'emiss')
 	plt.legend()
-
+	p4.add_patch(patches.Rectangle((rMin+(detArrayHeight/2*cos(angle)),0.1),cov, 10**21,angle = 0.0 , color = 'red' , alpha = 0.5))
+	fig1.suptitle('gain: '+ str(10**7)+' [V/A] mirror angle: 45 filter shift: +2 [nm] obDist: '+ str(obDist) +'[m] res: '+str(obDist*detArray[0].width/detArray[0].y)+ '[m]')
 	#Display it!
 	fig1.tight_layout()
 	plt.show()
@@ -304,7 +336,7 @@ def torBrightness(r,z, angle, emiss, detArray, obDist,eqObj):
 
 		# if the detector is horizontal, the Able Transform saves as computation time
 		if(slope == 0.0):
-			curBright = signalGen3.boxAve(brightness, curR - w, curR + w)
+			curBright = signalGen3.boxAve(brightness, round(curR - w,4), round(curR + w,4))
 
 		# if it is at an angle, we have to use the axially symmetric 3D abel transfrom
 		else:
@@ -324,7 +356,7 @@ def torBrightness(r,z, angle, emiss, detArray, obDist,eqObj):
 		sig = detArray[i].signal
 
 		print('noise Brightness: ' + str(curBright*noiseFrac))
-		detArray[i].noiseCalc(curBright*noiseFrac,noiseWvlngth)
+		detArray[i].carbonCalc(curBright*noiseFrac,noiseWvlngth)
 		vNoise  = detArray[i].noise
 
 		print('signal:'+str(sig/vNoise)+'\n')
@@ -396,7 +428,7 @@ def polBrightness(r,z, angle, emiss, detArray, obDist,eqObj):
 		curBright = signalGen3.lineInt(lineEmiss)
 
 		detArray[i].sigCalc(balmer2Lyman*curBright)
-		detArray[i].noiseCalc(curBright*noiseFrac,noiseWvlngth)
+		detArray[i].carbonCalc(curBright*noiseFrac,noiseWvlngth)
 
 
 	polPlot(r,z,angle, obDist, detArray, emiss, lineEmissArray)
@@ -426,8 +458,9 @@ def runSim(sigZ,sigR, angle, obDist, resolution, sWidth, sHeight, tor, detParam,
 		xDist = (-(nDet-1)/2.0 + i) * (detW + detParam[3]) 
 		
 		# initialize them with the values
+		# carbon and lyman signal is set to 0 to start
 		det = Detector(xDist,-imDist,detW, detParam[1], detParam[4], 0.0, sWidth, sHeight,\
-	              detParam[5],detParam[6],detParam[7], detParam[8],detParam[9],detParam[10])
+	              detParam[5],detParam[6],detParam[7], detParam[8],detParam[9],detParam[10],detParam[11],0.0)
 
 		detArray.append(det)
 
@@ -533,7 +566,8 @@ def main():
 	emiss = []
 	for i in range(len(cEmiss)):
 		emiss.append([ rPos[i],0.0,cEmiss[i] ])
-
+	"""[detWidth*unit,detHeight*unit,nDetectors, detGap * unit , responseAXUV,filterTrans,lyALine*unit,\
+	filterFWHM*unit,gain,filterN,voltNoise]"""
 
 	detParam = [detWidth*unit,detHeight*unit,nDetectors, detGap * unit , 0.2 ,1.0,465*10**(-9),\
 	filterFWHM*unit,gain,filterN,voltNoise]

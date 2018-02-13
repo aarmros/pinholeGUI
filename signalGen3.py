@@ -133,16 +133,12 @@ def fluxInterpolate(r,z, psi, emiss, maxDist,eqObj):
 
 	# If one of the closest data points is too far away, ignore it
 	if (disNegTheta > maxDist):
-		
-		print('One No point within maxDist')
 
 		closestEmiss1 = 0.0
 		aEmiss = closestEmiss2 #ignore the far point in average
 
 
 	if (disPosTheta > maxDist):
-
-		print(' Two No point within maxDist')
 
 		closestEmiss2 = 0.0
 		aEmiss = closestEmiss1
@@ -199,7 +195,7 @@ def genGrid(x, y, slope, delta, xMin, xMax):
 
 		grid.append([xData[i],yval])
 
-
+	print('genGrid: ' + str(xMin)+ ', '+str(grid[0][0])+', '+ str(grid[-1][0]))
 	return grid
 
 # creates a line of x,y slope between xmin and xmax and finds
@@ -297,6 +293,7 @@ def boxAve(f,xMin,xMax):
 
 	if (xMin < f[0][0]) or (f[-1][0] < xMax):
 			print('ERROR: xMin or xMax out of range of f')
+			print('min f: '+ str(f[0][0]))
 			return 0.0
 
 	# go over all of f, not super fast if f is large array
